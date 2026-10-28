@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fire Alarm Dashboard</title>
+  <style>
+    body { 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+      background: #111;
+      color: white; 
+      margin: 0; 
+      padding: 0;
+      min-height: 100vh;
+      overflow-x: hidden; 
+    }
+    
+    /* Judul Kiri Atas */
+    .web-title {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      font-size: 1.8rem;
+      font-weight: 900;
+      background: linear-gradient(90deg, #ff0000, #ff8c00);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin: 0;
+      z-index: 10;
+    }
+
+    .main-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 80px;
+      padding-bottom: 40px;
+      z-index: 5;
+      position: relative;
+    }
+
+    .content-box {
+      background: rgba(30, 30, 30, 0.8);
+      padding: 30px;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+      border: 1px solid #333;
+      text-align: center;
+      width: 90%;
+      max-width: 600px;
+    }
+
+    /* Sensor Status Widget */
+    .status-bar {
+      background: #222;
+      padding: 10px 20px;
+      border-radius: 30px;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      font-weight: bold;
+      border: 1px solid #444;
+    }
+    .status-text.ready { color: #2ecc71; }
+    .status-text.error { color: #e74c3c; }
+
+    /* Tombol Info (i) */
+    .btn-info {
+      background: transparent;
+      color: #e74c3c;
+      border: 2px solid #e74c3c;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      display: none; /* Sembunyi kalau ready */
+      justify-content: center;
+      align-items: center;
+    }
+    .btn-info:hover { background: #e74c3c; color: white; }
+
+    /* Pop-up Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.8);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-content {
+      background: #2c3e50;
+      padding: 25px;
+      border-radius: 15px;
+      width: 80%;
+      max-width: 400px;
+      text-align: center;
+      border: 1px solid #e74c3c;
+    }
+    .modal-content h3 { margin-top: 0; color: #e74c3c; }
+    .modal-content p { font-size: 1rem; line-height: 1.5; color: #ddd; }
+    .btn-close {
+      background: #e74c3c; border: none; color: white; padding: 10px 20px;
+      border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 15px;
+    }
+
+    /* Grafik dan Indikator */
+    .chart-container {
+      width: 100%;
+      height: 250px;
+      margin: 20px 0;
+    }
+    .suhu { font-size: 4rem; font-weight: bold; color: #f1c40f; margin-bottom: 10px; }
+    .container-ind { display: flex; justify-content: center; gap: 30px; margin-bottom: 25px; }
+    .indicator { display: flex; flex-direction: column; align-items: center; }
+    
+    .circle { width: 50px; height: 50px; border-radius: 50%; background-color: #555; margin-bottom: 8px; transition: 0.2s; }
+    .buzzer-on { background: #ff2a2a; box-shadow: 0 0 20px #ff2a2a; }
+    .buzzer-off { background: #5c1010; }
+
+    .btn-mute { background-color: #e74c3c; color: white; border: none; padding: 12px 25px; font-size: 1.1rem; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+  </style>
+  
+  <!-- Firebase & Chart.js -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+  <h1 class="web-title">FIRE ALARM</h1>
+
+  <div class="main-container">
+    <div class="content-box">
+      
+      <!-- Status Sensor -->
+      <div class="status-bar">
+        Status Sensor: 
+        <span id="txtStatus" class="status-text ready">Ready</span>
+        <button id="btnInfo" class="btn-info" onclick="bukaModal()">i</button>
+      </div>
+
+      <div class="suhu" id="nilaiSuhu">-- &deg;C</div>
+
+      <!-- Area Grafik Chart.js -->
+      <div class="chart-container">
+        <canvas id="suhuChart"></canvas>
+      </div>
+
+      <!-- Indikator -->
+      <div class="container-ind">
+        <div class="indicator">
+          <div class="circle" id="indHijau"></div>
+          <span>Aman</span>
+        </div>
+        <div class="indicator">
+          <div class="circle" id="indMerah"></div>
+          <span>Panas</span>
+        </div>
+        <div class="indicator">
+          <div class="circle buzzer-off" id="indBuzzer"></div>
+          <span id="textBuzzer">Buzzer</span>
+        </div>
+      </div>
+
+      <button class="btn-mute" id="btnMute" onclick="toggleMute()">MUTE BUZZER</button>
+    </div>
+  </div>
+
+  <!-- Modal Peringatan -->
+  <div class="modal-overlay" id="modalMasalah">
+    <div class="modal-content">
+      <h3>⚠️ Sensor Tidak Terbaca!</h3>
+      <p>
+        1. Periksa kabel sensor suhu (DS18B20).<br>
+        2. Pastikan kabel Data terhubung kuat ke <b>GPIO 4</b> ESP32.<br>
+        3. Periksa sambungan kabel Power (3.3V/5V) dan Ground (GND).<br>
+        4. Restart ESP32 (cabut-pasang kabel USB).
+      </p>
+      <button class="btn-close" onclick="tutupModal()">Tutup</button>
+    </div>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyDT9qR7sXFsKVuT-u3kXd1jDOhLCuDsVLk",
+      authDomain: "iot-fire-sensor.firebaseapp.com",
+      databaseURL: "https://iot-fire-sensor-default-rtdb.firebaseio.com/",
+      projectId: "iot-fire-sensor",
+      storageBucket: "iot-fire-sensor.firebasestorage.app",
+      messagingSenderId: "952901033888",
+      appId: "1:952901033888:web:8f7873e3a54b8e43dd4ec5"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // Konfigurasi Grafik (Chart.js)
+    const ctx = document.getElementById('suhuChart').getContext('2d');
+    const suhuChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [], // Waktu
+        datasets: [{
+          label: 'Suhu Ruangan (°C)',
+          data: [],
+          borderColor: '#ff8c00',
+          backgroundColor: 'rgba(255, 140, 0, 0.2)',
+          borderWidth: 2,
+          pointRadius: 0, // Sembunyikan titik agar mulus
+          fill: true,
+          tension: 0.4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { display: false }, // Sembunyikan label waktu agar rapi
+          y: { 
+            grid: { color: '#333' },
+            ticks: { color: '#fff' }
+          }
+        },
+        plugins: {
+          legend: { labels: { color: 'white' } }
+        }
+      }
+    });
+
+    // Ambil Data Firebase
+    db.ref('sensor').on('value', (snapshot) => {
+      const data = snapshot.val();
+      if (!data) return;
+
+      // 1. Status Sensor & Notifikasi Masalah
+      let txtStatus = document.getElementById('txtStatus');
+      let btnInfo = document.getElementById('btnInfo');
+      
+      if (data.sensor_ready === false) {
+        txtStatus.innerHTML = "Error!";
+        txtStatus.className = "status-text error";
+        btnInfo.style.display = "flex"; // Munculkan tombol i
+      } else {
+        txtStatus.innerHTML = "Ready";
+        txtStatus.className = "status-text ready";
+        btnInfo.style.display = "none";
+      }
+
+      // 2. Update Suhu & Grafik
+      document.getElementById('nilaiSuhu').innerHTML = Number(data.suhu).toFixed(1) + ' &deg;C';
+      
+      if(data.sensor_ready) {
+        let waktu = new Date().toLocaleTimeString();
+        suhuChart.data.labels.push(waktu);
+        suhuChart.data.datasets[0].data.push(data.suhu);
+        // Batasi grafik maksimal 15 titik terakhir
+        if (suhuChart.data.labels.length > 15) {
+          suhuChart.data.labels.shift();
+          suhuChart.data.datasets[0].data.shift();
+        }
+        suhuChart.update();
+      }
+
+      // 3. Indikator Hardware (Lampu & Buzzer)
+      document.getElementById('indHijau').style.backgroundColor = data.hijau ? '#2ecc71' : '#1e4a2f';
+      document.getElementById('indMerah').style.backgroundColor = data.merah ? '#e74c3c' : '#4a1e1e';
+      
+      let indBuzzer = document.getElementById('indBuzzer');
+      // Buzzer UI hanya membaca boolean, jadi menyala solid tanpa flip-flop
+      if (data.buzzer_ui) {
+        indBuzzer.className = 'circle buzzer-on';
+      } else {
+        indBuzzer.className = 'circle buzzer-off';
+      }
+
+      // 4. Mute Button UI
+      let btn = document.getElementById('btnMute');
+      if (data.is_muted) {
+        btn.innerHTML = "BUZZER DIMUTE";
+        btn.style.backgroundColor = "#555";
+      } else {
+        btn.innerHTML = "MUTE BUZZER";
+        btn.style.backgroundColor = "#e74c3c";
+      }
+    });
+
+    function toggleMute() {
+      db.ref('sensor/is_muted').once('value').then((snapshot) => {
+        let statusSekarang = snapshot.val();
+        db.ref('sensor').update({ is_muted: !statusSekarang });
+      });
+    }
+
+    function bukaModal() {
+      document.getElementById('modalMasalah').style.display = 'flex';
+    }
+    function tutupModal() {
+      document.getElementById('modalMasalah').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
